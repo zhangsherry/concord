@@ -1,0 +1,49 @@
+
+name: Build Windows x64
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build Concord for Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      # CMake, MSVC and LLVM are already available on the runner.
+      - name: Install NASM
+        shell: bash
+        run: |
+          choco install nasm --no-progress -y
+          echo 'C:\Program Files\NASM' >> "$GITHUB_PATH"
+          echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> "$GITHUB_ENV"
+
+      - name: Install CA certificates
+        uses: ./.github/actions/ca-bundle
+
+      - name: Build Concord
+        env:
+          CFLAGS: -DNDEBUG
+          CXXFLAGS: -DNDEBUG
+        run: cargo build --release --locked -p concord-desktop
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: concord-windows-x64
+          path: target/release/concord.exe
+          if-no-files-found: error
+          retention-days: 14
